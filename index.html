@@ -9,18 +9,22 @@
 <body>
 <header><h1>Creative-matter</h1><p id="mode" class="mode"></p></header>
 <main>
+  <p id="next-step" class="next-step" role="status" aria-live="polite"></p>
   <section id="connect">
     <h2>1. Conectar</h2>
     <p id="public-note" class="msg" hidden>Esta es la <strong>demostración pública</strong>: todo ocurre en tu navegador con datos de ejemplo, no se sube nada y no se gasta dinero. Para convertir dibujos de verdad se usa la versión local (instrucciones en web/README.md del repositorio).</p>
     <div id="connect-local">
-    <p>Dirección de la API y token de operador. El token solo vive en esta pestaña y no se guarda.</p>
-    <label>API <input id="base" value="http://127.0.0.1:8000" autocomplete="off"></label>
-    <label>Token <input id="token" type="password" autocomplete="off"></label>
-    <label class="check"><input id="real-mode" type="checkbox"> <span><strong>Modo real</strong>: ejecuta fal de verdad y <strong>gasta dinero</strong>. Solo funciona si el servidor se arrancó con el modo real.</span></label>
-    <label id="real-token-label" hidden>Token real <input id="real-token" type="password" autocomplete="off"></label>
+    <p>Pega el <strong>código de conexión</strong> que copió la ventana de arranque (<code>python scripts/start_beta.py</code>). Vive solo en esta pestaña y no se guarda.</p>
+    <label>Código de conexión <input id="code" type="password" autocomplete="off" placeholder="mm3d:…"></label>
     <button id="btn-connect">Conectar</button>
+    <details><summary>Opciones avanzadas (conectar a mano)</summary>
+      <label>API <input id="base" value="http://127.0.0.1:8000" autocomplete="off"></label>
+      <label>Token <input id="token" type="password" autocomplete="off"></label>
+      <label class="check"><input id="real-mode" type="checkbox"> <span><strong>Modo real</strong>: ejecuta fal de verdad y <strong>gasta dinero</strong>. Solo funciona si el servidor se arrancó con el modo real.</span></label>
+      <label id="real-token-label" hidden>Token real <input id="real-token" type="password" autocomplete="off"></label>
+    </details>
     </div>
-    <button id="btn-demo" class="secondary">Probar en modo demostración</button>
+    <button id="btn-demo" class="secondary">Probar en modo demostración (no gasta nada)</button>
     <p id="connect-msg" class="msg" role="status"></p>
   </section>
 
@@ -48,7 +52,7 @@
   </section>
 
   <section id="real-authorize" hidden>
-    <h2>Autorizar el gasto (modo real)</h2>
+    <h2>4. Autorizar el gasto (modo real)</h2>
     <p>Costo máximo de este trabajo: <strong id="real-bound"></strong> USD (2D y 3D juntos). Autorizar todavía <strong>no cobra nada</strong>:
       solo permite que los siguientes pasos gasten hasta ese máximo.</p>
     <button id="btn-authorize">Autorizar el gasto</button>
@@ -56,13 +60,13 @@
   </section>
 
   <section id="real-execute" hidden>
-    <h2>Ejecutar en fal (gasta dinero)</h2>
+    <h2>4. Ejecutar en fal (gasta dinero)</h2>
     <p id="exec-note">Este paso se envía a fal y <strong>se cobra</strong>. Una vez enviado no se puede deshacer.</p>
     <button id="btn-execute" class="danger">Ejecutar en fal (gasta dinero)</button>
   </section>
 
   <section id="approve2d" hidden>
-    <h2>4. Aprobar la referencia 2D</h2>
+    <h2>5. Aprobar la referencia 2D</h2>
     <img id="ref2d" alt="Referencia 2D generada">
     <div id="approve2d-controls">
       <p>Mira bien la imagen: es la que se usará para crear el modelo 3D. Aprobarla no cobra nada.</p>
@@ -72,7 +76,7 @@
   </section>
 
   <section id="approve3d" hidden>
-    <h2>5. Revisar el modelo 3D</h2>
+    <h2>6. Revisar el modelo 3D</h2>
     <p>Descarga el modelo y mídelo antes de imprimir. Código (hash) del modelo: <code id="shown3d"></code></p>
     <div class="stage">
       <div id="viewer" class="viewer" role="img" aria-label="Vista 3D del modelo; arrastra para girar"></div>
@@ -102,6 +106,7 @@
     <p class="notice">El frente es tu dibujo; la parte de atrás la imaginamos. El archivo para imprimir (STL) lleva solo la forma, sin color.</p>
     <p><a id="stl-link" href="#" download="figura.stl" hidden>Descargar el STL para imprimir</a> <span id="stl-note" class="msg"></span></p>
     <p id="real-done-note" class="msg" hidden>En modo real no se borra nada desde la web: los archivos de la corrida y el historial del gasto se conservan en el servidor. Anota el número de <em>run</em> que aparece arriba si quieres consultarla después.</p>
+    <button id="btn-another" class="secondary">Probar otro dibujo</button>
     <button id="btn-delete" class="danger">Borrar dibujo y trabajo</button>
   </section>
 

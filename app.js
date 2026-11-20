@@ -241,21 +241,29 @@ async function showModel(b, gen) {
 function connected(api, demo, real) {
   state.api = api; state.demo = demo; state.real = !!real;
   $("mode").textContent = demo ? "Modo demostración: nada sale de esta página." : real ? "MODO REAL: lo que ejecutes gasta dinero de verdad." : "Conectado a la API local (simulación).";
-  show("connect", false); show("upload");
+  show("connect", false); show("upload"); renderNextStep();
 }
 
+/* «Código de conexión» que imprime/copia scripts/start_beta.py: mm3d:<token> o mm3d:<token>:<token real>. Solo se usa en memoria. */
+function parseConnectionCode(text) {
+  const m = /^mm3d:([A-Za-z0-9_-]{32,})(?::([A-Za-z0-9_-]{32,}))?$/.exec(String(text || "").trim());
+  return m ? { token: m[1], realToken: m[2] || "" } : null;
+}
 $("btn-connect").onclick = () => {
   if (isPublicHost()) return; /* defensa en profundidad: la ocultación del formulario es solo de presentación */
+  const codeText = $("code").value.trim(), code = parseConnectionCode(codeText);
+  if (codeText && !code) { $("connect-msg").textContent = "Ese código no es válido. Copia el código completo que mostró la ventana de arranque (empieza con mm3d:)."; return; }
+  if (code) { $("token").value = code.token; $("real-token").value = code.realToken; $("real-mode").checked = !!code.realToken; }
   const token = $("token").value.trim();
   const origin = loopbackOrigin($("base").value.trim());
   if (!origin) { fail({ code: "BAD_ADDRESS" }); return; }
-  if (!token) { $("connect-msg").textContent = "Escribe el token."; return; }
+  if (!token) { $("connect-msg").textContent = "Pega el código de conexión (lo copia solo la ventana de arranque)."; return; }
   const wantsReal = $("real-mode").checked, realToken = $("real-token").value.trim();
   if (wantsReal && !realToken) { $("connect-msg").textContent = "El modo real necesita el token real."; return; }
   $("connect-msg").textContent = ""; ok();
   const base = realApi(origin, token, wantsReal ? realToken : "");
   connected(wantsReal ? operatorApi(base) : base, false, wantsReal);
-  $("token").value = ""; $("real-token").value = "";
+  $("token").value = ""; $("real-token").value = ""; $("code").value = "";
 };
 $("real-mode").onchange = () => { show("real-token-label", $("real-mode").checked); };
 $("btn-demo").onclick = () => { ok(); connected(demoApi(), true); };
@@ -276,7 +284,7 @@ function resetFromUpload() {
   state.planHash = null; clear2d();
   clearInterval(workTimer); workTimer = null; workStart = null; show("progress", false); /* nada del trabajo anterior */
   setStage("3d");
-  $("job-state").textContent = ""; state.bound = null; state.refHash = null; state.modelHash = null;
+  $("job-state").textContent = ""; state.bound = null; state.refHash = null; state.modelHash = null; state.lastJob = null; renderNextStep();
 }
 
 $("btn-upload").onclick = async () => {
@@ -284,7 +292,7 @@ $("btn-upload").onclick = async () => {
   resetFromUpload(); const gen = state.gen;
   try {
     const d = await state.api.upload(file); if (gen !== state.gen) return;
-    ok(); state.drawingId = d.id; state.preparedSha = d.sha256 || null;
+    ok(); state.drawingId = d.id; state.preparedSha = d.sha256 || null; renderNextStep();
     const src = d.image_url && d.image_url.startsWith("data:") ? d.image_url : URL.createObjectURL(await state.api.blob("/drawings/" + d.id + "/prepared"));
     if (gen !== state.gen) { if (src.startsWith("blob:")) URL.revokeObjectURL(src); return; }
     setUrl($("prepared-img"), "prepared-img", src);
@@ -323,7 +331,7 @@ async function refresh() {
   const gen = state.gen, jid = state.jobId, seq = ++refreshSeq; /* un refresh más nuevo invalida las peticiones pendientes de los anteriores */
   const j = await state.api.job(jid); if (gen !== state.gen || jid !== state.jobId || seq !== refreshSeq) return null; /* una consulta más nueva invalida también respuestas de estado viejas */
   const R0 = state.real, runTag = R0 && j.id ? " · run " + j.id : "";
-  $("job-state").textContent = "Estado: " + j.state + runTag;
+  state.lastJob = j; $("job-state").textContent = "Estado: " + (STATE_FRIENDLY[j.state] || j.state) + " (" + j.state + ")" + runTag;
   updateProgress(j);
   if (j.plan_sha256) state.planHash = j.plan_sha256;
   /* En modo real el modelo 3D (ya pagado) se ve en AWAITING_STL; si el STL falló (FAILED con modelo) se reintenta sin gasto. */
@@ -390,6 +398,7 @@ async function refresh() {
       else { setUrl($("stl-link"), "stl-link", URL.createObjectURL(s)); $("stl-link").hidden = false; $("stl-note").textContent = ""; }
     } catch (_) { if (gen === state.gen && seq === refreshSeq) $("stl-note").textContent = "No se pudo preparar la descarga del STL."; }
   }
+  renderNextStep();
   return j;
 }
 
@@ -432,7 +441,7 @@ $("btn-job").onclick = async () => {
   try {
     const j = await state.api.createJob(state.drawingId, $("profile").value, state.preparedSha);
     if (gen !== state.gen) return;
-    state.jobId = j.id; ok(); await watch();
+    state.jobId = j.id; renderNextStep(); ok(); await watch();
   } catch (e) {
     if (gen === state.gen) { fail(e); $("btn-job").disabled = !($("seen").checked && state.drawingId); }
   } finally { if (mine === state.creatingToken) creating = false; }
@@ -440,6 +449,63 @@ $("btn-job").onclick = async () => {
 $("btn-start").onclick = async () => { const gen = state.gen; try { await state.api.start(state.jobId); if (gen !== state.gen) return; ok(); await watch(); } catch (e) { if (gen === state.gen) fail(e); } };
 $("btn-refresh").onclick = () => { watch(); };
 const USD_RE = /^[0-9]{1,6}(\.[0-9]{1,6})?$/; /* mismo formato que acepta el servidor para max_usd */
+/* «Qué hacer ahora»: una frase en español sencillo según dónde vas (no decide nada; solo guía). */
+const STATE_FRIENDLY = {
+  PLANNED: "Plan listo", AUTHORIZATION_PENDING: "Autorizando", AUTHORIZED: "Gasto autorizado", QUEUED: "En cola", RUNNING: "Trabajando",
+  AWAITING_2D_APPROVAL: "Esperando que apruebes la imagen 2D", APPROVED_2D: "Imagen 2D aprobada", AWAITING_STL: "Modelo 3D listo; falta el STL",
+  AWAITING_3D_REVIEW: "Esperando que revises el modelo 3D", DONE: "Terminado", NEEDS_REVIEW: "Terminado: revísalo antes de imprimir",
+  FAILED: "Algo falló", RECOVERY_REQUIRED: "Hay que recuperar el trabajo", CANCELLED: "Cancelado",
+};
+function nextStep({ connected, drawing, job, real, stageBound, bound }) {
+  const usd = (v) => (v ? fmtUsd(v) + " USD" : "el costo que verás");
+  if (!connected) return "Paso 1 de 6 · Conecta: pega el código de conexión que copió la ventana de arranque (o prueba la demostración).";
+  if (!drawing) return "Paso 2 de 6 · Sube el dibujo (una foto o escaneo con buena luz, de frente).";
+  if (!job) return "Paso 3 de 6 · Mira que la figura se vea completa y bien recortada, marca la casilla y crea el trabajo.";
+  switch (job.state) {
+    case "PLANNED": case "AUTHORIZATION_PENDING": return real ? "Paso 4 de 6 · Autoriza el gasto: verás el costo máximo antes de confirmar." : "Paso 4 de 6 · Pulsa «Iniciar (simulado)».";
+    case "AUTHORIZED": return "Paso 4 de 6 · Pulsa «Ejecutar» para crear la imagen 2D. Se cobra hasta " + usd(stageBound || bound) + ".";
+    case "QUEUED": case "RUNNING": return "Paso 4 de 6 · Esperando a fal. No cierres esta pestaña ni la ventana de arranque.";
+    case "AWAITING_2D_APPROVAL": return "Paso 5 de 6 · Mira la imagen 2D. Si es la figura correcta, apruébala (aprobar no cobra).";
+    case "APPROVED_2D": return "Paso 5 de 6 · Imagen aprobada. Pulsa «Ejecutar» para crear el modelo 3D. Se cobra hasta " + usd(stageBound || bound) + ".";
+    case "AWAITING_STL": return "Paso 6 de 6 · Gira el modelo 3D. Si te gusta, pulsa «Generar STL» (no gasta).";
+    case "AWAITING_3D_REVIEW": return "Paso 6 de 6 · Revisa el modelo 3D y apruébalo.";
+    case "DONE": return "Listo · Descarga el STL y revísalo antes de imprimir.";
+    case "NEEDS_REVIEW": return "Listo, pero hay avisos · Descarga el STL y revisa con cuidado antes de imprimir.";
+    case "FAILED": return "Algo falló. Lee el mensaje de abajo; nada se vuelve a cobrar solo.";
+    case "RECOVERY_REQUIRED": return "El servidor se reinició durante un paso. Revisa el costo y pulsa «Ejecutar» para recuperarlo.";
+    default: return "Sigue las instrucciones de abajo.";
+  }
+}
+/* Asistente de una sola vista: de las secciones que existen en este momento, solo se ve la del paso actual (más la que hace falta
+   para actuar). Es solo presentación: no cambia qué botones existen ni qué confirma cada uno. Sin estado conocido no se oculta nada. */
+const WIZARD_SECTIONS = ["connect", "upload", "job", "real-authorize", "real-execute", "approve2d", "approve3d", "done"];
+function wizardVisible() {
+  if (!state.api) return ["connect"];
+  if (!state.drawingId) return ["upload"];
+  if (!state.jobId) return ["upload", "job"]; /* la casilla «ya miré la imagen» vive en «upload» y habilita «Crear trabajo» */
+  const j = state.lastJob; if (!j) return ["job"];
+  switch (j.state) {
+    case "PLANNED": case "AUTHORIZATION_PENDING": return state.real ? ["real-authorize", "job"] : ["job"];
+    case "AUTHORIZED": case "APPROVED_2D": case "RECOVERY_REQUIRED": return ["real-execute", "job"];
+    case "FAILED": return j.model_sha256 ? ["approve3d"] : ["real-execute", "job"];
+    case "QUEUED": case "RUNNING": return ["job"];
+    case "AWAITING_2D_APPROVAL": return ["approve2d"];
+    case "AWAITING_STL": case "AWAITING_3D_REVIEW": return ["approve3d"];
+    case "DONE": case "NEEDS_REVIEW": return ["approve3d", "done"];
+    default: return null;
+  }
+}
+function applyWizard() {
+  const allowed = wizardVisible();
+  for (const id of WIZARD_SECTIONS) { const el = $(id); if (el && el.classList) el.classList.toggle("step-hidden", !!allowed && !allowed.includes(id)); }
+  const key = allowed ? allowed.join(",") : "";
+  if (key !== state.wizardKey) { state.wizardKey = key; if (typeof window !== "undefined" && typeof window.scrollTo === "function") window.scrollTo(0, 0); }
+}
+function renderNextStep() {
+  applyWizard();
+  $("next-step").textContent = nextStep({ connected: !!state.api, drawing: !!state.drawingId, job: state.jobId ? state.lastJob : null,
+    real: state.real, stageBound: state.stageBound, bound: state.bound });
+}
 /* Solo para mostrar: 0.372000 -> 0.372, 0.300000 -> 0.30 (al servidor se envía la cadena exacta del plan). */
 function fmtUsd(s) {
   const m = /^([0-9]+)(?:\.([0-9]+))?$/.exec(String(s)); if (!m) return String(s);
@@ -520,5 +586,30 @@ function approver(step) {
 }
 $("btn-approve2d").onclick = approver("2d");
 $("btn-approve3d").onclick = approver("3d");
+$("btn-another").onclick = () => {
+  resetFromUpload(); $("file").value = ""; state.drawingId = null; state.jobId = null; ok(); renderNextStep();
+  if (typeof $("upload").scrollIntoView === "function") $("upload").scrollIntoView({ behavior: "smooth", block: "start" });
+};
 $("btn-delete").onclick = async () => { try { await state.api.remove(state.jobId, state.drawingId); location.reload(); } catch (e) { fail(e); } };
-if (typeof module !== "undefined") module.exports = { loopbackOrigin, state, glbIsSafe, showModel, refresh, resetFromUpload, realApi, operatorApi, fail, watch, setStage, modelStats, confirmDialog, fmtUsd, isPublicHost };
+/* Conexión automática: si la página la sirve scripts/start_beta.py, /session.json trae el código (solo para esta página). Sin él, todo sigue igual. */
+async function autoConnect() {
+  try {
+    if (state.api || typeof fetch !== "function" || typeof location === "undefined" || !/^https?:$/.test(location.protocol || "")) return false;
+    if (!loopbackOrigin(location.origin)) return false;
+    const r = await fetch("/session.json", { cache: "no-store", credentials: "omit" });
+    if (!r || !r.ok) return false;
+    const j = await r.json(), code = parseConnectionCode(j && j.code), origin = loopbackOrigin(j && j.api);
+    if (!code || !origin || state.api) return false;
+    if (code.realToken) return false; /* el servidor nunca debe mandar el token real: si llega, no se conecta sola */
+    if (j.real === true) { /* modo real: el token de operador llega solo, el token real lo pega George (queda copiado) */
+      $("base").value = origin; $("token").value = code.token; $("real-mode").checked = true; show("real-token-label", true);
+      $("connect-msg").textContent = "Modo real: pega el token real (ya está copiado; Ctrl+V) en «Token real» y pulsa Conectar.";
+      return true;
+    }
+    $("base").value = origin; $("code").value = j.code; $("btn-connect").onclick();
+    return true;
+  } catch (_) { return false; } /* sin /session.json (otro servidor, file://): se conecta a mano */
+}
+renderNextStep();
+const autoConnecting = autoConnect();
+if (typeof module !== "undefined") module.exports = { loopbackOrigin, state, glbIsSafe, showModel, refresh, resetFromUpload, realApi, operatorApi, fail, watch, setStage, modelStats, confirmDialog, fmtUsd, isPublicHost, parseConnectionCode, autoConnect, autoConnecting, nextStep, renderNextStep, wizardVisible, applyWizard };
