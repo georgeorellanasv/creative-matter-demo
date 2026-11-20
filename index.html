@@ -1,0 +1,124 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Creative-matter</title>
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+<header><h1>Creative-matter</h1><p id="mode" class="mode"></p></header>
+<main>
+  <section id="connect">
+    <h2>1. Conectar</h2>
+    <p id="public-note" class="msg" hidden>Esta es la <strong>demostración pública</strong>: todo ocurre en tu navegador con datos de ejemplo, no se sube nada y no se gasta dinero. Para convertir dibujos de verdad se usa la versión local (instrucciones en web/README.md del repositorio).</p>
+    <div id="connect-local">
+    <p>Dirección de la API y token de operador. El token solo vive en esta pestaña y no se guarda.</p>
+    <label>API <input id="base" value="http://127.0.0.1:8000" autocomplete="off"></label>
+    <label>Token <input id="token" type="password" autocomplete="off"></label>
+    <label class="check"><input id="real-mode" type="checkbox"> <span><strong>Modo real</strong>: ejecuta fal de verdad y <strong>gasta dinero</strong>. Solo funciona si el servidor se arrancó con el modo real.</span></label>
+    <label id="real-token-label" hidden>Token real <input id="real-token" type="password" autocomplete="off"></label>
+    <button id="btn-connect">Conectar</button>
+    </div>
+    <button id="btn-demo" class="secondary">Probar en modo demostración</button>
+    <p id="connect-msg" class="msg" role="status"></p>
+  </section>
+
+  <section id="upload" hidden>
+    <h2>2. Subir el dibujo</h2>
+    <input id="file" type="file" accept="image/png,image/jpeg">
+    <button id="btn-upload">Subir y preparar</button>
+    <div id="prepared" hidden>
+      <img id="prepared-img" alt="Dibujo preparado">
+      <p id="review" class="msg"></p>
+      <label class="check"><input id="seen" type="checkbox"> Ya miré la imagen: la figura se ve completa y bien recortada.</label>
+    </div>
+  </section>
+
+  <section id="job" hidden>
+    <h2>3. Crear el trabajo</h2>
+    <label>Perfil
+      <select id="profile"><option value="A">A: figura de prueba</option><option value="B">B: figura final</option></select>
+    </label>
+    <button id="btn-job" disabled>Crear trabajo</button>
+    <p id="job-state" class="state"></p>
+    <p id="progress" class="msg" role="status" hidden></p>
+    <button id="btn-refresh" class="secondary" hidden>Actualizar estado</button>
+    <button id="btn-start" hidden>Iniciar (simulado)</button>
+  </section>
+
+  <section id="real-authorize" hidden>
+    <h2>Autorizar el gasto (modo real)</h2>
+    <p>Costo máximo de este trabajo: <strong id="real-bound"></strong> USD (2D y 3D juntos). Autorizar todavía <strong>no cobra nada</strong>:
+      solo permite que los siguientes pasos gasten hasta ese máximo.</p>
+    <button id="btn-authorize">Autorizar el gasto</button>
+    <details><summary>Detalles técnicos</summary><p>Código (hash) del plan: <code id="real-plan-hash"></code></p></details>
+  </section>
+
+  <section id="real-execute" hidden>
+    <h2>Ejecutar en fal (gasta dinero)</h2>
+    <p id="exec-note">Este paso se envía a fal y <strong>se cobra</strong>. Una vez enviado no se puede deshacer.</p>
+    <button id="btn-execute" class="danger">Ejecutar en fal (gasta dinero)</button>
+  </section>
+
+  <section id="approve2d" hidden>
+    <h2>4. Aprobar la referencia 2D</h2>
+    <img id="ref2d" alt="Referencia 2D generada">
+    <div id="approve2d-controls">
+      <p>Mira bien la imagen: es la que se usará para crear el modelo 3D. Aprobarla no cobra nada.</p>
+      <button id="btn-approve2d">Aprobar esta imagen</button>
+    </div>
+    <details><summary>Detalles técnicos</summary><p>Código (hash) de esta imagen: <code id="shown2d"></code></p></details>
+  </section>
+
+  <section id="approve3d" hidden>
+    <h2>5. Revisar el modelo 3D</h2>
+    <p>Descarga el modelo y mídelo antes de imprimir. Código (hash) del modelo: <code id="shown3d"></code></p>
+    <div class="stage">
+      <div id="viewer" class="viewer" role="img" aria-label="Vista 3D del modelo; arrastra para girar"></div>
+      <img id="stage-img" class="stage-img" alt="" hidden>
+      <p id="model-info" class="model-info" role="status" hidden></p>
+      <div class="thumbs" role="group" aria-label="Cambiar la vista principal">
+        <button id="thumb-orig" class="thumb" type="button" aria-pressed="false" title="Dibujo original"><img id="thumb-orig-img" alt="Dibujo original"></button>
+        <button id="thumb-2d" class="thumb" type="button" aria-pressed="false" title="Referencia 2D"><img id="thumb-2d-img" alt="Referencia 2D"></button>
+        <button id="thumb-3d" class="thumb" type="button" aria-pressed="true" title="Modelo 3D"><span>3D</span></button>
+      </div>
+    </div>
+    <p id="viewer-note" class="msg"></p>
+    <div id="real-stl" hidden>
+      <p>El modelo 3D ya está guardado. Generar el STL es un paso local: <strong>no gasta dinero</strong> y no vuelve a llamar a fal.</p>
+      <button id="btn-generate-stl">Generar STL</button>
+    </div>
+    <p><a id="model-link" href="#" download="modelo.glb" hidden>Descargar el modelo</a> <span id="model-note" class="msg"></span></p>
+    <div id="approve3d-controls">
+      <button id="btn-approve3d">Aprobar 3D</button>
+    </div>
+    <p id="downloads"></p>
+  </section>
+
+  <section id="done" hidden>
+    <h2>Listo</h2>
+    <p id="done-msg"></p>
+    <p class="notice">El frente es tu dibujo; la parte de atrás la imaginamos. El archivo para imprimir (STL) lleva solo la forma, sin color.</p>
+    <p><a id="stl-link" href="#" download="figura.stl" hidden>Descargar el STL para imprimir</a> <span id="stl-note" class="msg"></span></p>
+    <p id="real-done-note" class="msg" hidden>En modo real no se borra nada desde la web: los archivos de la corrida y el historial del gasto se conservan en el servidor. Anota el número de <em>run</em> que aparece arriba si quieres consultarla después.</p>
+    <button id="btn-delete" class="danger">Borrar dibujo y trabajo</button>
+  </section>
+
+  <dialog id="confirm-dialog" aria-labelledby="confirm-title" aria-describedby="confirm-msg">
+    <h2 id="confirm-title"></h2>
+    <p id="confirm-msg"></p>
+    <div class="dialog-actions">
+      <button id="confirm-cancel" class="secondary" type="button" autofocus>Cancelar</button>
+      <button id="confirm-ok" type="button">Continuar</button>
+    </div>
+  </dialog>
+
+  <p id="error" class="msg error" role="alert"></p>
+</main>
+<script src="vendor/three/three.min.js"></script>
+<script src="vendor/three/GLTFLoader.js"></script>
+<script src="vendor/three/OrbitControls.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
